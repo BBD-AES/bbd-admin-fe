@@ -78,8 +78,11 @@ export default function App() {
   async function refreshSession() {
     setBusy(true);
     try {
-      setSession(await getSession());
+      const currentSession = await getSession();
+      setSession(currentSession);
+      setError("");
     } catch (caught) {
+      setSession(null);
       setError(errorMessage(caught));
     } finally {
       setBusy(false);
@@ -166,7 +169,7 @@ export default function App() {
     setError("");
   }
 
-  if (session && !session.authenticated) {
+  if (!session || !session.authenticated) {
     return (
       <main className="login-shell">
         <section className="login-panel">
@@ -178,6 +181,8 @@ export default function App() {
           <button className="primary wide" type="button" onClick={login}>
             로그인
           </button>
+          {error && <p className="inline-error">{error}</p>}
+          {busy && !error && <p className="muted">Checking session...</p>}
         </section>
       </main>
     );
@@ -475,6 +480,10 @@ function tenancyValue(value: string | null | undefined): TenancyType {
 }
 
 function errorMessage(caught: unknown) {
+  if (caught instanceof TypeError) {
+    return "Backend request failed. Check VITE_BBD_ADMIN_API_BASE and FRONTEND_ORIGIN.";
+  }
+
   const apiError = caught as Partial<ApiError>;
-  return apiError.message ?? "요청 처리 중 오류가 발생했습니다.";
+  return apiError.message ?? "Request failed.";
 }

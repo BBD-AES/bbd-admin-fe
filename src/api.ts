@@ -7,7 +7,10 @@ import type {
   UserPayload
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_HDP_API_BASE ?? "http://localhost:8090";
+const API_BASE =
+  import.meta.env.VITE_BBD_ADMIN_API_BASE ??
+  import.meta.env.VITE_HDP_API_BASE ??
+  "http://localhost:8090";
 
 export function login() {
   window.location.href = `${API_BASE}/oauth2/authorization/keycloak`;
