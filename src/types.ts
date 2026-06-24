@@ -78,6 +78,14 @@ export type BulkProvisionedUsersResponse = {
   result: string;
 };
 
+export type UserMaintenanceResponse = {
+  requested: number;
+  updated: number;
+  unchanged: number;
+  failedUsers: string[];
+  result: string;
+};
+
 export type ApiError = {
   status: number;
   code: string;

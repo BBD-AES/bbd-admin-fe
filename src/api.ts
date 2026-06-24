@@ -5,6 +5,7 @@ import type {
   KeycloakUserSummary,
   ProvisionedUserResponse,
   Session,
+  UserMaintenanceResponse,
   UserPayload
 } from "./types";
 
@@ -59,6 +60,12 @@ export async function createUsersBulk(
   return request<BulkProvisionedUsersResponse>("/api/admin/users/bulk", {
     method: "POST",
     body: JSON.stringify({ users: users.map(cleanPayload) })
+  });
+}
+
+export async function applyCurrentUserSettings(): Promise<UserMaintenanceResponse> {
+  return request<UserMaintenanceResponse>("/api/admin/users/apply-current-settings", {
+    method: "POST"
   });
 }
 

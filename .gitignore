@@ -1,6 +1,43 @@
+# dependencies
 node_modules/
+
+# build output
 dist/
+build/
+
+# logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# env
 .env
 .env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+
+# 배포용 env는 비밀값 없으면 올려도 됨
+# VITE_BBD_ADMIN_API_BASE= 정도만 있으면 commit 가능
+!.env.example
+!.env.production
+
+# editor
+.vscode/
+.idea/
+
+# OS
 .DS_Store
+
+# certificates / secrets
+*.pem
+*.key
+*.p12
+*.jks
+
+# cache
+.cache/
+.vite/

@@ -268,7 +268,7 @@ select:focus {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px 10px;
-  min-height: 76px;
+  min-height: 68px;
   border: 0;
   border-bottom: 1px solid #eef2f7;
   border-radius: 0;
@@ -283,6 +283,7 @@ select:focus {
 .row-main {
   overflow: hidden;
   color: #0f172a;
+  font-size: 15px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -293,6 +294,7 @@ select:focus {
   overflow: hidden;
   color: #64748b;
   font-size: 12px;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

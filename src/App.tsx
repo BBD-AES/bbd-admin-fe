@@ -1,5 +1,6 @@
 import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 import {
+  applyCurrentUserSettings,
   createUsersBulk,
   createUser,
   deactivateUser,
@@ -25,6 +26,8 @@ import "./styles.css";
 const ADMIN_DENIED_MESSAGE = "관리자 권한이 없습니다. 재 로그인하세요.";
 
 const LOGIN_FAILED_MESSAGE = "로그인 처리가 완료되지 않았습니다. 다시 로그인하세요.";
+
+const DEFAULT_TEMPORARY_PASSWORD = "bbd12345";
 
 const roles: UserRole[] = [
   "ADMIN",
@@ -52,14 +55,14 @@ const tenancyLabels: Record<TenancyType, string> = {
 type ModalMode = "create" | "edit";
 
 const bulkSample = `사번,이름,직급,비밀번호,역할,소속 유형,소속명,계정 상태,임시 비밀번호
-BR001,이상장,점장,Temp1234,지점 직원,지점,강남지점,활성,true
-HQ001,김본사,과장,Temp1234,본사 직원,본사,성수본사,활성,true`;
+BR001,이상장,점장,bbd12345,지점 직원,지점,강남지점,활성,true
+HQ001,김본사,과장,bbd12345,본사 직원,본사,성수본사,활성,true`;
 
 function blankPayload(): UserPayload {
   return {
     email: "",
     displayName: "",
-    password: "",
+    password: DEFAULT_TEMPORARY_PASSWORD,
     temporaryPassword: true,
     enabled: true,
     emailVerified: false,
@@ -152,7 +155,7 @@ export default function App() {
   }
 
   function openCreateModal() {
-    setForm(blankPayload());
+    setForm(withTemporaryPasswordDefault(blankPayload()));
     setBulkModalOpen(false);
     setModalMode("create");
     setNotice("");
@@ -173,7 +176,7 @@ export default function App() {
     if (!detail) {
       return;
     }
-    setForm(payloadFromDetail(detail));
+    setForm(withTemporaryPasswordDefault(payloadFromDetail(detail)));
     setModalMode("edit");
     setNotice("");
     setError("");
@@ -244,6 +247,37 @@ export default function App() {
       }
     } catch (caught) {
       setModalError(isAdminDenied(caught) ? ADMIN_DENIED_MESSAGE : errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applySettingsToAllUsers() {
+    if (!window.confirm("전체 사용자에게 현재 공통 설정을 다시 적용할까요?")) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await applyCurrentUserSettings();
+      const summary =
+        `전체 ${result.requested}명 중 ${result.updated}명 적용, `
+        + `${result.unchanged}명 이미 적용`;
+
+      await loadUsers();
+      if (selectedId) {
+        await selectUser(selectedId);
+      }
+
+      if (result.failedUsers.length) {
+        setError(`${summary}, ${result.failedUsers.length}명 실패\n${result.failedUsers.join("\n")}`);
+      } else {
+        setNotice(summary);
+      }
+    } catch (caught) {
+      handleFailure(caught);
     } finally {
       setBusy(false);
     }
@@ -403,6 +437,9 @@ export default function App() {
           </button>
         </form>
         <div className="toolbar-actions">
+          <button disabled={busy} type="button" onClick={() => void applySettingsToAllUsers()}>
+            전체 사용자 다시 저장
+          </button>
           <button type="button" onClick={openBulkModal}>
             대량 추가
           </button>
@@ -432,9 +469,9 @@ export default function App() {
                 type="button"
                 onClick={() => void selectUser(user.id)}
               >
-                <span className="row-main">{displayUserName(user)}</span>
-                <span className="row-sub">{user.email ?? user.username}</span>
-                <span className="row-meta">{employeeNumber(user)}</span>
+                <span className="row-main">{employeeListName(user)}</span>
+                <span className="row-sub">{employeeListSummary(user)}</span>
+                <span className="row-meta">{employeeListMeta(user)}</span>
                 <span className={`status ${user.enabled === false ? "off" : "on"}`}>
                   {user.enabled === false ? "비활성" : "활성"}
                 </span>
@@ -559,7 +596,13 @@ export default function App() {
                   {fieldLabel("비밀번호", modalMode === "create")}
                   <input
                     required={modalMode === "create"}
-                    placeholder={modalMode === "create" ? "예: 초기 비밀번호" : "변경할 때만 입력"}
+                    placeholder={
+                      form.temporaryPassword
+                        ? DEFAULT_TEMPORARY_PASSWORD
+                        : modalMode === "create"
+                          ? "예: 초기 비밀번호"
+                          : "변경할 때만 입력"
+                    }
                     type="password"
                     value={form.password}
                     onChange={(event) => setFormField("password", event.target.value)}
@@ -625,7 +668,7 @@ export default function App() {
                       checked={form.temporaryPassword}
                       type="checkbox"
                       onChange={(event) =>
-                        setFormField("temporaryPassword", event.target.checked)
+                        setTemporaryPassword(event.target.checked)
                       }
                     />
                     임시 비밀번호
@@ -697,6 +740,24 @@ export default function App() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function setTemporaryPassword(checked: boolean) {
+    setForm((current) => {
+      if (checked) {
+        return {
+          ...current,
+          temporaryPassword: true,
+          password: current.password.trim() ? current.password : DEFAULT_TEMPORARY_PASSWORD
+        };
+      }
+
+      return {
+        ...current,
+        temporaryPassword: false,
+        password: current.password === DEFAULT_TEMPORARY_PASSWORD ? "" : current.password
+      };
+    });
+  }
+
   function setAccountStatus(status: AccountStatus) {
     const active = status === "ACTIVE";
     setForm((current) => ({ ...current, enabled: active }));
@@ -716,6 +777,17 @@ function payloadForSubmit(payload: UserPayload): UserPayload {
   };
 }
 
+function withTemporaryPasswordDefault(payload: UserPayload): UserPayload {
+  if (!payload.temporaryPassword || payload.password.trim()) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    password: DEFAULT_TEMPORARY_PASSWORD
+  };
+}
+
 function accountStatus(payload: UserPayload): AccountStatus {
   return payload.enabled === false ? "SUSPENDED" : "ACTIVE";
 }
@@ -726,6 +798,7 @@ function payloadFromDetail(detail: AdminUserDetail): UserPayload {
     email: detail.keycloak.email ?? "",
     displayName:
       detail.scim?.displayName ||
+      meaningfulDisplayName(detail.keycloak) ||
       firstAttr(attrs.displayName) ||
       displayUserName(detail.keycloak),
     password: "",
@@ -750,9 +823,39 @@ function payloadFromDetail(detail: AdminUserDetail): UserPayload {
 }
 
 function displayUserName(user: KeycloakUserSummary) {
-  const attributeDisplayName = firstAttr(user.attributes?.displayName);
+  return meaningfulDisplayName(user) || user.username || employeeNumber(user);
+}
+
+function employeeListName(user: KeycloakUserSummary) {
+  return meaningfulDisplayName(user) || "이름 없음";
+}
+
+function meaningfulDisplayName(user: KeycloakUserSummary) {
   const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-  return attributeDisplayName || fullName || user.username;
+  const candidates = [
+    firstAttr(user.attributes?.name),
+    fullName,
+    firstAttr(user.attributes?.displayName)
+  ];
+
+  return candidates.find((value) => isRealNameValue(value, user)) ?? "";
+}
+
+function isRealNameValue(value: string | null | undefined, user: KeycloakUserSummary) {
+  if (!value?.trim()) {
+    return false;
+  }
+
+  const normalizedValue = normalizeIdentifier(value);
+  const identifierValues = [user.username, employeeNumber(user)]
+    .filter(Boolean)
+    .map(normalizeIdentifier);
+
+  return !identifierValues.includes(normalizedValue);
+}
+
+function normalizeIdentifier(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function employeeNumber(user: KeycloakUserSummary) {
@@ -762,6 +865,23 @@ function employeeNumber(user: KeycloakUserSummary) {
     user.username ||
     "-"
   );
+}
+
+function employeeListSummary(user: KeycloakUserSummary) {
+  return [
+    employeeNumber(user),
+    firstAttr(user.attributes?.position)
+  ].filter(Boolean).join(" · ");
+}
+
+function employeeListMeta(user: KeycloakUserSummary) {
+  const role = roleLabel(firstAttr(user.attributes?.role) || firstAttr(user.attributes?.erpRole));
+  const tenancyName =
+    firstAttr(user.attributes?.tenancy_name) ||
+    firstAttr(user.attributes?.tenancyName) ||
+    tenancyLabel(firstAttr(user.attributes?.tenancy_type) || firstAttr(user.attributes?.tenancyType));
+
+  return [role, tenancyName].filter((value) => value && value !== "-").join(" · ") || user.username;
 }
 
 function fieldLabel(text: string, required = false) {
