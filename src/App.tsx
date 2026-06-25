@@ -204,7 +204,7 @@ export default function App() {
     if (!detail) {
       return;
     }
-    setForm(withTemporaryPasswordDefault(payloadFromDetail(detail)));
+    setForm(payloadFromDetail(detail));
     setModalMode("edit");
     setNotice("");
     setError("");
@@ -949,7 +949,7 @@ function payloadFromDetail(detail: AdminUserDetail): UserPayload {
       firstAttr(attrs.displayName) ||
       displayUserName(detail.keycloak),
     password: "",
-    temporaryPassword: true,
+    temporaryPassword: false,
     enabled: detail.keycloak.enabled !== false,
     emailVerified: detail.keycloak.emailVerified === true,
     employeeNumber:
