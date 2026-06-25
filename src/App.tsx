@@ -108,6 +108,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [modalMode, setModalMode] = useState<ModalMode | null>(null);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [applySettingsModalOpen, setApplySettingsModalOpen] = useState(false);
   const [bulkText, setBulkText] = useState(bulkSample);
   const [accessToken, setAccessToken] = useState("");
   const [busy, setBusy] = useState(false);
@@ -228,6 +229,7 @@ export default function App() {
     employeeNumberRequestSeq.current += 1;
     setModalMode(null);
     setBulkModalOpen(false);
+    setApplySettingsModalOpen(false);
     setModalError("");
     if (detail) {
       setForm(payloadFromDetail(detail));
@@ -295,10 +297,6 @@ export default function App() {
   }
 
   async function applySettingsToAllUsers() {
-    if (!window.confirm("전체 사용자에게 현재 공통 설정을 다시 적용할까요?")) {
-      return;
-    }
-
     setBusy(true);
     setError("");
     setNotice("");
@@ -316,10 +314,12 @@ export default function App() {
       if (result.failedUsers.length) {
         setError(`${summary}, ${result.failedUsers.length}명 실패\n${result.failedUsers.join("\n")}`);
       } else {
+        setApplySettingsModalOpen(false);
+        setModalError("");
         setNotice(summary);
       }
     } catch (caught) {
-      handleFailure(caught);
+      setModalError(isAdminDenied(caught) ? ADMIN_DENIED_MESSAGE : errorMessage(caught));
     } finally {
       setBusy(false);
     }
@@ -526,15 +526,14 @@ export default function App() {
           </button>
         </form>
         <div className="toolbar-actions">
-          <label className="toolbar-check">
-            <input
-              checked={passwordLockEnabled}
-              type="checkbox"
-              onChange={(event) => setPasswordLockEnabled(event.target.checked)}
-            />
-            5회 실패 잠금
-          </label>
-          <button disabled={busy} type="button" onClick={() => void applySettingsToAllUsers()}>
+          <button
+            disabled={busy}
+            type="button"
+            onClick={() => {
+              setApplySettingsModalOpen(true);
+              setModalError("");
+            }}
+          >
             전체 사용자 다시 저장
           </button>
           <button type="button" onClick={openBulkModal}>
@@ -610,6 +609,8 @@ export default function App() {
                 <dd>{tenancyLabel(detail.scim?.tenancyType)}</dd>
                 <dt>소속명</dt>
                 <dd>{detail.scim?.tenancyName ?? "-"}</dd>
+                <dt>잠금 상태</dt>
+                <dd>{lockStatusLabel(detail)}</dd>
                 <dt>SCIM ID</dt>
                 <dd>{detail.scim?.id ?? "-"}</dd>
                 <dt>Keycloak ID</dt>
@@ -620,9 +621,11 @@ export default function App() {
                 <button className="primary" disabled={busy} type="button" onClick={openEditModal}>
                   정보 수정
                 </button>
-                <button disabled={busy} type="button" onClick={() => void unlockSelected()}>
-                  잠금 해제
-                </button>
+                {detail.lockStatus?.locked === true && (
+                  <button disabled={busy} type="button" onClick={() => void unlockSelected()}>
+                    잠금 해제
+                  </button>
+                )}
                 <button disabled={busy} type="button" onClick={deactivateSelected}>
                   비활성화
                 </button>
@@ -872,6 +875,51 @@ export default function App() {
           </section>
         </div>
       )}
+
+      {applySettingsModalOpen && (
+        <div className="modal-backdrop" onMouseDown={handleBackdropMouseDown}>
+          <section aria-modal="true" className="modal narrow-modal" role="dialog">
+            <form
+              className="modal-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void applySettingsToAllUsers();
+              }}
+            >
+              <div className="modal-heading">
+                <h2>전체 사용자 설정 적용</h2>
+                <button aria-label="닫기" type="button" onClick={closeModal}>
+                  닫기
+                </button>
+              </div>
+
+              {modalError && <section className="modal-message error">{modalError}</section>}
+
+              <div className="form-grid">
+                <div className="checks span-2">
+                  <label>
+                    <input
+                      checked={passwordLockEnabled}
+                      type="checkbox"
+                      onChange={(event) => setPasswordLockEnabled(event.target.checked)}
+                    />
+                    5회 실패 시 잠금 기능 활성화
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-actions">
+                <button disabled={busy} type="button" onClick={closeModal}>
+                  취소
+                </button>
+                <button className="primary" disabled={busy} type="submit">
+                  전체 사용자 다시 저장
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 
@@ -1095,6 +1143,19 @@ function fieldLabel(text: string, required = false) {
 function avatarText(detail: AdminUserDetail) {
   const name = detail.scim?.displayName || displayUserName(detail.keycloak);
   return name.trim().slice(0, 2).toUpperCase() || "BB";
+}
+
+function lockStatusLabel(detail: AdminUserDetail) {
+  if (!detail.lockStatus) {
+    return "확인 불가";
+  }
+
+  if (detail.lockStatus.locked) {
+    return "잠김";
+  }
+
+  const failures = detail.lockStatus.numFailures ?? 0;
+  return failures > 0 ? `정상 (${failures}회 실패)` : "정상";
 }
 
 function roleLabel(value: string | null | undefined) {

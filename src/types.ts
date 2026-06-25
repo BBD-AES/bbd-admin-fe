@@ -70,6 +70,7 @@ export type ScimUserSummary = {
 export type AdminUserDetail = {
   keycloak: KeycloakUserSummary;
   scim: ScimUserSummary | null;
+  lockStatus: UserLockStatusResponse | null;
 };
 
 export type ProvisionedUserResponse = {
@@ -97,6 +98,11 @@ export type UserMaintenanceResponse = {
 export type PasswordLockPolicyResponse = {
   enabled: boolean | null;
   failureFactor: number | null;
+};
+
+export type UserLockStatusResponse = {
+  locked: boolean | null;
+  numFailures: number | null;
 };
 
 export type ApiError = {

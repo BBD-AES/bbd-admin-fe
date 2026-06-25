@@ -206,24 +206,6 @@ select:focus {
   justify-content: flex-end;
 }
 
-.toolbar-check {
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #ffffff;
-  color: #334155;
-  gap: 8px;
-  padding: 0 12px;
-  font-weight: 700;
-}
-
-.toolbar-check input {
-  width: 16px;
-  height: 16px;
-}
-
 .banner {
   margin-bottom: 16px;
   border-radius: 8px;
@@ -450,6 +432,10 @@ select:focus {
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.28);
+}
+
+.narrow-modal {
+  width: min(560px, 100%);
 }
 
 .modal-form {
