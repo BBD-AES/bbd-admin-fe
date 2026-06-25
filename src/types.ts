@@ -27,12 +27,19 @@ export type UserPayload = {
   enabled: boolean;
   emailVerified: boolean;
   employeeNumber: string;
+  autoEmployeeNumber: boolean;
   position: string;
   role: UserRole;
   tenancyType: TenancyType;
   tenancyName: string;
   sourceActive: boolean;
+  requireTotp: boolean;
   attributes: Record<string, string[]>;
+};
+
+export type NextEmployeeNumberResponse = {
+  prefix: string;
+  nextNumber: string;
 };
 
 export type KeycloakUserSummary = {
@@ -44,6 +51,7 @@ export type KeycloakUserSummary = {
   enabled: boolean | null;
   emailVerified: boolean | null;
   attributes: Record<string, string[]> | null;
+  requiredActions: string[] | null;
 };
 
 export type ScimUserSummary = {

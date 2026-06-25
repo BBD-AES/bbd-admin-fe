@@ -3,8 +3,10 @@ import type {
   ApiError,
   BulkProvisionedUsersResponse,
   KeycloakUserSummary,
+  NextEmployeeNumberResponse,
   ProvisionedUserResponse,
   Session,
+  UserRole,
   UserMaintenanceResponse,
   UserPayload
 } from "./types";
@@ -45,6 +47,15 @@ export async function searchUsers(search: string): Promise<KeycloakUserSummary[]
 
 export async function getUser(userId: string): Promise<AdminUserDetail> {
   return request<AdminUserDetail>(`/api/admin/users/${encodeURIComponent(userId)}`);
+}
+
+export async function getNextEmployeeNumber(
+  role: UserRole
+): Promise<NextEmployeeNumberResponse> {
+  const query = new URLSearchParams({ role });
+  return request<NextEmployeeNumberResponse>(
+    `/api/admin/users/next-employee-number?${query.toString()}`
+  );
 }
 
 export async function createUser(payload: UserPayload): Promise<ProvisionedUserResponse> {

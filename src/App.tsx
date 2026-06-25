@@ -5,6 +5,7 @@ import {
   createUser,
   deactivateUser,
   getAccessToken,
+  getNextEmployeeNumber,
   getSession,
   getUser,
   login,
@@ -52,11 +53,29 @@ const tenancyLabels: Record<TenancyType, string> = {
   BRANCH: "지점"
 };
 
+const tenancyNameOptions: Record<TenancyType, string[]> = {
+  HQ: ["성수본사", "판교본사", "마곡본사", "송도물류센터"],
+  BRANCH: [
+    "강남지점",
+    "판교지점",
+    "수원지점",
+    "대전지점",
+    "부산지점",
+    "대구지점",
+    "광주지점",
+    "인천지점",
+    "울산지점",
+    "창원지점",
+    "청주지점",
+    "전주지점"
+  ]
+};
+
 type ModalMode = "create" | "edit";
 
-const bulkSample = `사번,이름,직급,비밀번호,역할,소속 유형,소속명,계정 상태,임시 비밀번호
-BR001,이상장,점장,bbd12345,지점 직원,지점,강남지점,활성,true
-HQ001,김본사,과장,bbd12345,본사 직원,본사,성수본사,활성,true`;
+const bulkSample = `사번,이름,직급,비밀번호,역할,소속 유형,소속명,계정 상태,임시 비밀번호,사번 자동 발급,2차 인증 설정
+,이상장,점장,bbd12345,지점 직원,지점,강남지점,활성,true,true,true
+,김본사,과장,bbd12345,본사 직원,본사,성수본사,활성,true,true,true`;
 
 function blankPayload(): UserPayload {
   return {
@@ -67,11 +86,13 @@ function blankPayload(): UserPayload {
     enabled: true,
     emailVerified: false,
     employeeNumber: "",
+    autoEmployeeNumber: true,
     position: "",
     role: "HQ_STAFF",
     tenancyType: "HQ",
-    tenancyName: "",
+    tenancyName: defaultTenancyName("HQ"),
     sourceActive: true,
+    requireTotp: true,
     attributes: {}
   };
 }
@@ -92,6 +113,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
   const adminDeniedAlerted = useRef(false);
+  const employeeNumberRequestSeq = useRef(0);
 
   useEffect(() => {
     if (consumeLoginError()) {
@@ -105,6 +127,12 @@ export default function App() {
       void loadUsers();
     }
   }, [session?.authenticated, session?.admin]);
+
+  useEffect(() => {
+    if (modalMode === "create" && form.autoEmployeeNumber && isAutoEmployeeNumberRole(form.role)) {
+      void loadNextEmployeeNumber(form.role);
+    }
+  }, [modalMode, form.autoEmployeeNumber, form.role]);
 
   async function refreshSession() {
     setBusy(true);
@@ -184,6 +212,7 @@ export default function App() {
   }
 
   function closeModal() {
+    employeeNumberRequestSeq.current += 1;
     setModalMode(null);
     setBulkModalOpen(false);
     setModalError("");
@@ -202,7 +231,7 @@ export default function App() {
     setNotice("");
 
     try {
-      const payload = payloadForSubmit(form);
+      const payload = payloadForSubmit(form, modalMode);
       if (modalMode !== "edit" || payload.password.trim()) {
         assertPasswordPolicy(payload.password);
       }
@@ -320,6 +349,31 @@ export default function App() {
     }
     adminDeniedAlerted.current = true;
     window.alert(ADMIN_DENIED_MESSAGE);
+  }
+
+  async function loadNextEmployeeNumber(role: UserRole) {
+    const requestSeq = employeeNumberRequestSeq.current + 1;
+    employeeNumberRequestSeq.current = requestSeq;
+    setModalError("");
+
+    try {
+      const result = await getNextEmployeeNumber(role);
+      if (employeeNumberRequestSeq.current !== requestSeq) {
+        return;
+      }
+      setForm((current) =>
+        current.role === role
+          ? {
+              ...current,
+              employeeNumber: result.nextNumber
+            }
+          : current
+      );
+    } catch (caught) {
+      if (employeeNumberRequestSeq.current === requestSeq) {
+        setModalError(errorMessage(caught));
+      }
+    }
   }
 
   function consumeLoginError() {
@@ -553,10 +607,29 @@ export default function App() {
                 <label>
                   {fieldLabel("사번 (Keycloak 로그인 ID)", true)}
                   <input
-                    required
+                    disabled={
+                      modalMode === "create"
+                      && form.autoEmployeeNumber
+                      && isAutoEmployeeNumberRole(form.role)
+                    }
+                    required={
+                      modalMode !== "create"
+                      || !form.autoEmployeeNumber
+                      || !isAutoEmployeeNumberRole(form.role)
+                    }
                     pattern={"[A-Za-z0-9._\\-]+"}
-                    title="영문, 숫자, 마침표, 밑줄, 하이픈만 입력할 수 있습니다."
-                    placeholder="예: BR001"
+                    title={
+                      form.autoEmployeeNumber && isAutoEmployeeNumberRole(form.role)
+                        ? "역할 기준으로 자동 발급됩니다."
+                        : "영문, 숫자, 마침표, 밑줄, 하이픈만 입력할 수 있습니다."
+                    }
+                    placeholder={
+                      modalMode === "create"
+                      && form.autoEmployeeNumber
+                      && isAutoEmployeeNumberRole(form.role)
+                        ? "역할 선택 시 자동 입력"
+                        : "예: BR001"
+                    }
                     value={form.employeeNumber}
                     onChange={(event) => setFormField("employeeNumber", event.target.value)}
                   />
@@ -614,7 +687,7 @@ export default function App() {
                   <select
                     required
                     value={form.role}
-                    onChange={(event) => setFormField("role", event.target.value as UserRole)}
+                    onChange={(event) => setRole(event.target.value as UserRole)}
                   >
                     {roles.map((role) => (
                       <option key={role} value={role}>
@@ -630,7 +703,7 @@ export default function App() {
                     required
                     value={form.tenancyType}
                     onChange={(event) =>
-                      setFormField("tenancyType", event.target.value as TenancyType)
+                      setTenancyType(event.target.value as TenancyType)
                     }
                   >
                     {tenancyTypes.map((type) => (
@@ -643,12 +716,17 @@ export default function App() {
 
                 <label className="span-2">
                   {fieldLabel("소속명", true)}
-                  <input
+                  <select
                     required
-                    placeholder={form.tenancyType === "HQ" ? "예: 본사" : "예: 강남 1지점"}
                     value={form.tenancyName}
                     onChange={(event) => setFormField("tenancyName", event.target.value)}
-                  />
+                  >
+                    {tenancyNameSelectOptions(form.tenancyType, form.tenancyName).map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label>
@@ -665,6 +743,17 @@ export default function App() {
                 <div className="checks">
                   <label>
                     <input
+                      checked={form.autoEmployeeNumber}
+                      disabled={modalMode === "edit"}
+                      type="checkbox"
+                      onChange={(event) =>
+                        setAutoEmployeeNumber(event.target.checked)
+                      }
+                    />
+                    사번 자동 발급
+                  </label>
+                  <label>
+                    <input
                       checked={form.temporaryPassword}
                       type="checkbox"
                       onChange={(event) =>
@@ -672,6 +761,16 @@ export default function App() {
                       }
                     />
                     임시 비밀번호
+                  </label>
+                  <label>
+                    <input
+                      checked={form.requireTotp}
+                      type="checkbox"
+                      onChange={(event) =>
+                        setFormField("requireTotp", event.target.checked)
+                      }
+                    />
+                    2차 인증 설정
                   </label>
                 </div>
               </div>
@@ -758,6 +857,38 @@ export default function App() {
     });
   }
 
+  function setRole(role: UserRole) {
+    setForm((current) => ({
+      ...current,
+      role,
+      employeeNumber:
+        modalMode === "create" && current.autoEmployeeNumber
+          ? ""
+          : current.employeeNumber
+    }));
+  }
+
+  function setAutoEmployeeNumber(checked: boolean) {
+    setForm((current) => ({
+      ...current,
+      autoEmployeeNumber: checked,
+      employeeNumber:
+        checked && modalMode === "create" && isAutoEmployeeNumberRole(current.role)
+          ? ""
+          : current.employeeNumber
+    }));
+  }
+
+  function setTenancyType(type: TenancyType) {
+    setForm((current) => ({
+      ...current,
+      tenancyType: type,
+      tenancyName: tenancyNameOptions[type].includes(current.tenancyName)
+        ? current.tenancyName
+        : defaultTenancyName(type)
+    }));
+  }
+
   function setAccountStatus(status: AccountStatus) {
     const active = status === "ACTIVE";
     setForm((current) => ({ ...current, enabled: active }));
@@ -766,13 +897,16 @@ export default function App() {
 
 type AccountStatus = "ACTIVE" | "SUSPENDED";
 
-function payloadForSubmit(payload: UserPayload): UserPayload {
+function payloadForSubmit(payload: UserPayload, mode: ModalMode | null): UserPayload {
   const employeeNumber = payload.employeeNumber.trim();
   const displayName = payload.displayName.trim();
 
   return {
     ...payload,
-    employeeNumber,
+    employeeNumber:
+      mode === "create" && payload.autoEmployeeNumber && isAutoEmployeeNumberRole(payload.role)
+        ? ""
+        : employeeNumber,
     displayName
   };
 }
@@ -790,6 +924,19 @@ function withTemporaryPasswordDefault(payload: UserPayload): UserPayload {
 
 function accountStatus(payload: UserPayload): AccountStatus {
   return payload.enabled === false ? "SUSPENDED" : "ACTIVE";
+}
+
+function defaultTenancyName(type: TenancyType) {
+  return tenancyNameOptions[type][0] ?? "";
+}
+
+function tenancyNameSelectOptions(type: TenancyType, currentName: string) {
+  const options = tenancyNameOptions[type];
+  if (!currentName || options.includes(currentName)) {
+    return options;
+  }
+
+  return [currentName, ...options];
 }
 
 function payloadFromDetail(detail: AdminUserDetail): UserPayload {
@@ -810,6 +957,7 @@ function payloadFromDetail(detail: AdminUserDetail): UserPayload {
       firstAttr(attrs.employee_number) ||
       firstAttr(attrs.employeeNumber) ||
       detail.keycloak.username,
+    autoEmployeeNumber: false,
     position: detail.scim?.position || firstAttr(attrs.position),
     role: roleValue(detail.scim?.role || firstAttr(attrs.role) || firstAttr(attrs.erpRole)),
     tenancyType: tenancyValue(
@@ -818,6 +966,7 @@ function payloadFromDetail(detail: AdminUserDetail): UserPayload {
     tenancyName:
       detail.scim?.tenancyName || firstAttr(attrs.tenancy_name) || firstAttr(attrs.tenancyName),
     sourceActive: detail.scim?.active !== false,
+    requireTotp: detail.keycloak.requiredActions?.includes("CONFIGURE_TOTP") ?? true,
     attributes: {}
   };
 }
@@ -926,6 +1075,13 @@ function roleValue(value: string | null | undefined): UserRole {
   return roles.includes(value as UserRole) ? (value as UserRole) : "HQ_STAFF";
 }
 
+function isAutoEmployeeNumberRole(role: UserRole) {
+  return role === "HQ_MANAGER"
+    || role === "HQ_STAFF"
+    || role === "BRANCH_MANAGER"
+    || role === "BRANCH_STAFF";
+}
+
 function tenancyValue(value: string | null | undefined): TenancyType {
   return tenancyTypes.includes(value as TenancyType) ? (value as TenancyType) : "HQ";
 }
@@ -947,9 +1103,9 @@ function parseBulkUsers(text: string): UserPayload[] {
 
   const users = dataLines.map((line, index) => {
     const columns = parseCsvLine(line).map((column) => column.trim());
-    if (columns.length !== 9) {
+    if (columns.length < 9 || columns.length > 11) {
       throw new Error(
-        `${index + 1}번째 데이터 줄의 컬럼 수가 맞지 않습니다. 9개 컬럼이 필요합니다.`
+        `${index + 1}번째 데이터 줄의 컬럼 수가 맞지 않습니다. 9~11개 컬럼이 필요합니다.`
       );
     }
 
@@ -962,16 +1118,23 @@ function parseBulkUsers(text: string): UserPayload[] {
       tenancyType,
       tenancyName,
       accountStatusValue,
-      temporaryPasswordValue
+      temporaryPasswordValue,
+      autoEmployeeNumberValue = "",
+      requireTotpValue = ""
     ] = columns;
 
-    const requiredValues = { employeeNumber, displayName, position, password, role, tenancyType, tenancyName };
+    const autoEmployeeNumber = optionalBooleanValue(autoEmployeeNumberValue, true, "사번 자동 발급");
+    const requireTotp = optionalBooleanValue(requireTotpValue, true, "2차 인증 설정");
+    const requiredValues = { displayName, position, password, role, tenancyType, tenancyName };
     Object.entries(requiredValues).forEach(([key, value]) => {
       if (!value.trim()) {
         throw new Error(`${index + 1}번째 데이터 줄의 ${key} 값이 비어 있습니다.`);
       }
     });
-    if (!/^[A-Za-z0-9._-]+$/.test(employeeNumber)) {
+    if (!autoEmployeeNumber && !employeeNumber.trim()) {
+      throw new Error(`${index + 1}번째 데이터 줄은 사번 자동 발급이 꺼져 있어 사번이 필요합니다.`);
+    }
+    if (employeeNumber && !/^[A-Za-z0-9._-]+$/.test(employeeNumber)) {
       throw new Error(
         `${index + 1}번째 데이터 줄의 사번은 영문, 숫자, 마침표, 밑줄, 하이픈만 입력할 수 있습니다.`
       );
@@ -982,15 +1145,17 @@ function parseBulkUsers(text: string): UserPayload[] {
       email: "",
       displayName,
       password,
-      temporaryPassword: booleanValue(temporaryPasswordValue),
+      temporaryPassword: booleanValue(temporaryPasswordValue, "임시 비밀번호"),
       enabled: accountStatusFromInput(accountStatusValue) === "ACTIVE",
       emailVerified: false,
       employeeNumber,
+      autoEmployeeNumber,
       position,
       role: roleValueFromInput(role),
       tenancyType: tenancyValueFromInput(tenancyType),
       tenancyName,
       sourceActive: true,
+      requireTotp,
       attributes: {}
     } satisfies UserPayload;
   });
@@ -998,6 +1163,9 @@ function parseBulkUsers(text: string): UserPayload[] {
   const employeeNumbers = new Set<string>();
   const duplicates = new Set<string>();
   users.forEach((user) => {
+    if (!user.employeeNumber) {
+      return;
+    }
     if (employeeNumbers.has(user.employeeNumber)) {
       duplicates.add(user.employeeNumber);
     }
@@ -1075,7 +1243,7 @@ function accountStatusFromInput(value: string): AccountStatus {
   throw new Error(`계정 상태 값이 올바르지 않습니다: ${value}`);
 }
 
-function booleanValue(value: string) {
+function booleanValue(value: string, label = "값") {
   const normalized = value.trim().toUpperCase();
   if (["TRUE", "Y", "YES", "1", "임시", "예"].includes(normalized)) {
     return true;
@@ -1083,7 +1251,14 @@ function booleanValue(value: string) {
   if (["FALSE", "N", "NO", "0", "아니오"].includes(normalized)) {
     return false;
   }
-  throw new Error(`임시 비밀번호 값이 올바르지 않습니다: ${value}`);
+  throw new Error(`${label} 값이 올바르지 않습니다: ${value}`);
+}
+
+function optionalBooleanValue(value: string, defaultValue: boolean, label: string) {
+  if (!value.trim()) {
+    return defaultValue;
+  }
+  return booleanValue(value, label);
 }
 
 function assertPasswordPolicy(password: string, label = "비밀번호") {
