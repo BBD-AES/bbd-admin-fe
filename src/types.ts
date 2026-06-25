@@ -34,6 +34,7 @@ export type UserPayload = {
   tenancyName: string;
   sourceActive: boolean;
   requireTotp: boolean;
+  passwordLockEnabled: boolean;
   attributes: Record<string, string[]>;
 };
 
@@ -52,6 +53,7 @@ export type KeycloakUserSummary = {
   emailVerified: boolean | null;
   attributes: Record<string, string[]> | null;
   requiredActions: string[] | null;
+  lockStatus: UserLockStatusResponse | null;
 };
 
 export type ScimUserSummary = {

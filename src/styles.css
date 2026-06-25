@@ -289,6 +289,15 @@ select:focus {
   background: #eff6ff;
 }
 
+.employee-row.locked {
+  border-left: 4px solid #dc2626;
+  background: #fff7ed;
+}
+
+.employee-row.locked.selected {
+  background: #fee2e2;
+}
+
 .row-main {
   overflow: hidden;
   color: #0f172a;
@@ -328,6 +337,20 @@ select:focus {
 .status.off {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.status.locked,
+.lock-chip {
+  background: #991b1b;
+  color: #ffffff;
+}
+
+.lock-chip {
+  align-self: start;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .empty,
@@ -414,6 +437,22 @@ select:focus {
   justify-content: flex-end;
 }
 
+.lock-alert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff1f2;
+  color: #991b1b;
+  padding: 10px 12px;
+}
+
+.lock-alert strong {
+  color: #7f1d1d;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -440,6 +479,22 @@ select:focus {
 
 .modal-form {
   display: grid;
+}
+
+.modal-form > .modal-heading {
+  order: 1;
+}
+
+.modal-form > .modal-message {
+  order: 2;
+}
+
+.modal-form > .form-grid {
+  order: 4;
+}
+
+.modal-form > .modal-actions {
+  order: 5;
 }
 
 .modal-heading {
@@ -525,6 +580,11 @@ label {
   padding: 0;
 }
 
+.bulk-policy-toggle {
+  order: 3;
+  margin: 14px 16px 0;
+}
+
 .bulk-textarea {
   min-height: 320px;
   resize: vertical;
@@ -576,6 +636,10 @@ label {
 
   .identity .status {
     justify-self: start;
+  }
+
+  .lock-alert {
+    grid-template-columns: 1fr;
   }
 
   .modal-backdrop {

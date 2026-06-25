@@ -95,6 +95,7 @@ function blankPayload(): UserPayload {
     tenancyName: defaultTenancyName("HQ"),
     sourceActive: true,
     requireTotp: true,
+    passwordLockEnabled: true,
     attributes: {}
   };
 }
@@ -281,7 +282,7 @@ export default function App() {
 
     try {
       const parsedUsers = parseBulkUsers(bulkText);
-      const result = await createUsersBulk(parsedUsers);
+      const result = await createUsersBulk(parsedUsers, passwordLockEnabled);
       setNotice(`${result.requested}명 직원을 대량 추가했습니다.`);
       setBulkModalOpen(false);
       await loadUsers();
@@ -560,7 +561,9 @@ export default function App() {
           <div className="rows">
             {users.map((user) => (
               <button
-                className={`employee-row ${user.id === selectedId ? "selected" : ""}`}
+                className={`employee-row ${user.id === selectedId ? "selected" : ""} ${
+                  user.lockStatus?.locked === true ? "locked" : ""
+                }`}
                 key={user.id}
                 type="button"
                 onClick={() => void selectUser(user.id)}
@@ -568,7 +571,8 @@ export default function App() {
                 <span className="row-main">{employeeListName(user)}</span>
                 <span className="row-sub">{employeeListSummary(user)}</span>
                 <span className="row-meta">{employeeListMeta(user)}</span>
-                <span className={`status ${user.enabled === false ? "off" : "on"}`}>
+                {user.lockStatus?.locked === true && <span className="lock-chip">잠김</span>}
+                <span className={`status ${userStatusClass(user)}`}>
                   {user.enabled === false ? "비활성" : "활성"}
                 </span>
               </button>
@@ -591,10 +595,20 @@ export default function App() {
                   <h3>{detail.scim?.displayName || displayUserName(detail.keycloak)}</h3>
                   <p>{detail.keycloak.email ?? "이메일 없음"}</p>
                 </div>
-                <span className={`status ${detail.keycloak.enabled === false ? "off" : "on"}`}>
+                <span className={`status ${detailStatusClass(detail)}`}>
                   {detail.keycloak.enabled === false ? "비활성" : "활성"}
                 </span>
               </div>
+
+              {detail.lockStatus?.locked === true && (
+                <section className="lock-alert">
+                  <strong>비밀번호 잠김</strong>
+                  <span>5회 실패 잠금 상태입니다.</span>
+                  <button disabled={busy} type="button" onClick={() => void unlockSelected()}>
+                    잠금 해제
+                  </button>
+                </section>
+              )}
 
               <dl className="detail-grid">
                 <dt>Keycloak 로그인 ID</dt>
@@ -821,6 +835,16 @@ export default function App() {
                     />
                     2차 인증 설정
                   </label>
+                  <label>
+                    <input
+                      checked={form.passwordLockEnabled}
+                      type="checkbox"
+                      onChange={(event) =>
+                        setFormField("passwordLockEnabled", event.target.checked)
+                      }
+                    />
+                    5회 실패 시 잠금
+                  </label>
                 </div>
               </div>
 
@@ -841,6 +865,16 @@ export default function App() {
         <div className="modal-backdrop" onMouseDown={handleBackdropMouseDown}>
           <section aria-modal="true" className="modal" role="dialog">
             <form className="modal-form" onSubmit={submitBulk}>
+              <div className="checks bulk-policy-toggle">
+                <label>
+                  <input
+                    checked={passwordLockEnabled}
+                    type="checkbox"
+                    onChange={(event) => setPasswordLockEnabled(event.target.checked)}
+                  />
+                  5회 실패 시 잠금 기능 활성화
+                </label>
+              </div>
               <div className="modal-heading">
                 <h2>직원 대량 추가</h2>
                 <button aria-label="닫기" type="button" onClick={closeModal}>
@@ -1061,6 +1095,7 @@ function payloadFromDetail(detail: AdminUserDetail): UserPayload {
       detail.scim?.tenancyName || firstAttr(attrs.tenancy_name) || firstAttr(attrs.tenancyName),
     sourceActive: detail.scim?.active !== false,
     requireTotp: detail.keycloak.requiredActions?.includes("CONFIGURE_TOTP") ?? true,
+    passwordLockEnabled: true,
     attributes: {}
   };
 }
@@ -1156,6 +1191,20 @@ function lockStatusLabel(detail: AdminUserDetail) {
 
   const failures = detail.lockStatus.numFailures ?? 0;
   return failures > 0 ? `정상 (${failures}회 실패)` : "정상";
+}
+
+function userStatusClass(user: KeycloakUserSummary) {
+  if (user.lockStatus?.locked === true) {
+    return "locked";
+  }
+  return user.enabled === false ? "off" : "on";
+}
+
+function detailStatusClass(detail: AdminUserDetail) {
+  if (detail.lockStatus?.locked === true) {
+    return "locked";
+  }
+  return detail.keycloak.enabled === false ? "off" : "on";
 }
 
 function roleLabel(value: string | null | undefined) {
@@ -1263,6 +1312,7 @@ function parseBulkUsers(text: string): UserPayload[] {
       tenancyName,
       sourceActive: true,
       requireTotp,
+      passwordLockEnabled: true,
       attributes: {}
     } satisfies UserPayload;
   });

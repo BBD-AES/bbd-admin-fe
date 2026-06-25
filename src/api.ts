@@ -67,11 +67,15 @@ export async function createUser(payload: UserPayload): Promise<ProvisionedUserR
 }
 
 export async function createUsersBulk(
-  users: UserPayload[]
+  users: UserPayload[],
+  passwordLockEnabled: boolean
 ): Promise<BulkProvisionedUsersResponse> {
   return request<BulkProvisionedUsersResponse>("/api/admin/users/bulk", {
     method: "POST",
-    body: JSON.stringify({ users: users.map(cleanPayload) })
+    body: JSON.stringify({
+      passwordLockEnabled,
+      users: users.map((user) => cleanPayload(user, false))
+    })
   });
 }
 
@@ -121,13 +125,19 @@ export async function unlockUser(userId: string): Promise<ProvisionedUserRespons
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (requiresIdempotencyKey(method) && !headers.has("Idempotency-Key")) {
+    headers.set("Idempotency-Key", createIdempotencyKey());
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
+    ...init,
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    },
-    ...init
+    headers
   });
 
   if (!response.ok) {
@@ -177,8 +187,8 @@ async function requestText(path: string, init?: RequestInit): Promise<string> {
   return response.text();
 }
 
-function cleanPayload(payload: UserPayload) {
-  return {
+function cleanPayload(payload: UserPayload, includePasswordLock = true) {
+  const cleaned = {
     ...payload,
     employeeNumber: payload.employeeNumber.trim(),
     email: blankToNull(payload.email),
@@ -188,9 +198,25 @@ function cleanPayload(payload: UserPayload) {
     tenancyName: blankToNull(payload.tenancyName),
     attributes: Object.keys(payload.attributes).length ? payload.attributes : null
   };
+
+  if (!includePasswordLock) {
+    const { passwordLockEnabled, ...withoutPasswordLock } = cleaned;
+    return withoutPasswordLock;
+  }
+
+  return cleaned;
 }
 
 function blankToNull(value: string) {
   const trimmed = value.trim();
   return trimmed.length ? trimmed : null;
+}
+
+function requiresIdempotencyKey(method: string) {
+  return method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE";
+}
+
+function createIdempotencyKey() {
+  return globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
