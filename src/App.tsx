@@ -6,11 +6,13 @@ import {
   deactivateUser,
   getAccessToken,
   getNextEmployeeNumber,
+  getPasswordLockPolicy,
   getSession,
   getUser,
   login,
   logout,
   searchUsers,
+  unlockUser,
   updateUser
 } from "./api";
 import type {
@@ -112,6 +114,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
+  const [passwordLockEnabled, setPasswordLockEnabled] = useState(true);
   const adminDeniedAlerted = useRef(false);
   const employeeNumberRequestSeq = useRef(0);
 
@@ -125,6 +128,7 @@ export default function App() {
   useEffect(() => {
     if (session?.authenticated && session.admin) {
       void loadUsers();
+      void loadPasswordLockPolicy();
     }
   }, [session?.authenticated, session?.admin]);
 
@@ -162,6 +166,15 @@ export default function App() {
       handleFailure(caught);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadPasswordLockPolicy() {
+    try {
+      const policy = await getPasswordLockPolicy();
+      setPasswordLockEnabled(policy.enabled !== false);
+    } catch (caught) {
+      handleFailure(caught);
     }
   }
 
@@ -290,7 +303,7 @@ export default function App() {
     setError("");
     setNotice("");
     try {
-      const result = await applyCurrentUserSettings();
+      const result = await applyCurrentUserSettings(passwordLockEnabled);
       const summary =
         `전체 ${result.requested}명 중 ${result.updated}명 적용, `
         + `${result.unchanged}명 이미 적용`;
@@ -327,6 +340,28 @@ export default function App() {
       const result = await deactivateUser(selectedId);
       setNotice(`${result.username} 직원을 비활성화했습니다.`);
       await loadUsers();
+      await selectUser(selectedId);
+    } catch (caught) {
+      handleFailure(caught);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unlockSelected() {
+    if (!selectedId || !detail) {
+      return;
+    }
+    if (!window.confirm("선택한 직원의 Keycloak 잠금을 해제할까요?")) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await unlockUser(selectedId);
+      setNotice(`${result.username} 직원의 Keycloak 잠금을 해제했습니다.`);
       await selectUser(selectedId);
     } catch (caught) {
       handleFailure(caught);
@@ -491,6 +526,14 @@ export default function App() {
           </button>
         </form>
         <div className="toolbar-actions">
+          <label className="toolbar-check">
+            <input
+              checked={passwordLockEnabled}
+              type="checkbox"
+              onChange={(event) => setPasswordLockEnabled(event.target.checked)}
+            />
+            5회 실패 잠금
+          </label>
           <button disabled={busy} type="button" onClick={() => void applySettingsToAllUsers()}>
             전체 사용자 다시 저장
           </button>
@@ -576,6 +619,9 @@ export default function App() {
               <div className="detail-actions">
                 <button className="primary" disabled={busy} type="button" onClick={openEditModal}>
                   정보 수정
+                </button>
+                <button disabled={busy} type="button" onClick={() => void unlockSelected()}>
+                  잠금 해제
                 </button>
                 <button disabled={busy} type="button" onClick={deactivateSelected}>
                   비활성화

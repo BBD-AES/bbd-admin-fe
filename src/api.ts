@@ -4,6 +4,7 @@ import type {
   BulkProvisionedUsersResponse,
   KeycloakUserSummary,
   NextEmployeeNumberResponse,
+  PasswordLockPolicyResponse,
   ProvisionedUserResponse,
   Session,
   UserRole,
@@ -74,9 +75,25 @@ export async function createUsersBulk(
   });
 }
 
-export async function applyCurrentUserSettings(): Promise<UserMaintenanceResponse> {
+export async function getPasswordLockPolicy(): Promise<PasswordLockPolicyResponse> {
+  return request<PasswordLockPolicyResponse>("/api/admin/users/password-lock-policy");
+}
+
+export async function updatePasswordLockPolicy(
+  enabled: boolean
+): Promise<PasswordLockPolicyResponse> {
+  return request<PasswordLockPolicyResponse>("/api/admin/users/password-lock-policy", {
+    method: "PUT",
+    body: JSON.stringify({ enabled })
+  });
+}
+
+export async function applyCurrentUserSettings(
+  passwordLockEnabled: boolean
+): Promise<UserMaintenanceResponse> {
   return request<UserMaintenanceResponse>("/api/admin/users/apply-current-settings", {
-    method: "POST"
+    method: "POST",
+    body: JSON.stringify({ passwordLockEnabled })
   });
 }
 
@@ -94,6 +111,13 @@ export async function deactivateUser(userId: string): Promise<ProvisionedUserRes
   return request<ProvisionedUserResponse>(`/api/admin/users/${encodeURIComponent(userId)}`, {
     method: "DELETE"
   });
+}
+
+export async function unlockUser(userId: string): Promise<ProvisionedUserResponse> {
+  return request<ProvisionedUserResponse>(
+    `/api/admin/users/${encodeURIComponent(userId)}/unlock`,
+    { method: "POST" }
+  );
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

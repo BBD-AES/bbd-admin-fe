@@ -94,6 +94,11 @@ export type UserMaintenanceResponse = {
   result: string;
 };
 
+export type PasswordLockPolicyResponse = {
+  enabled: boolean | null;
+  failureFactor: number | null;
+};
+
 export type ApiError = {
   status: number;
   code: string;
