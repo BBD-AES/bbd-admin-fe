@@ -95,7 +95,6 @@ function blankPayload(): UserPayload {
     tenancyName: defaultTenancyName("HQ"),
     sourceActive: true,
     requireTotp: true,
-    passwordLockEnabled: true,
     attributes: {}
   };
 }
@@ -839,16 +838,6 @@ export default function App() {
                     />
                     2차 인증 설정
                   </label>
-                  <label>
-                    <input
-                      checked={form.passwordLockEnabled}
-                      type="checkbox"
-                      onChange={(event) =>
-                        setFormField("passwordLockEnabled", event.target.checked)
-                      }
-                    />
-                    5회 실패 시 잠금
-                  </label>
                 </div>
               </div>
 
@@ -1099,7 +1088,6 @@ function payloadFromDetail(detail: AdminUserDetail): UserPayload {
       detail.scim?.tenancyName || firstAttr(attrs.tenancy_name) || firstAttr(attrs.tenancyName),
     sourceActive: detail.scim?.active !== false,
     requireTotp: detail.keycloak.requiredActions?.includes("CONFIGURE_TOTP") ?? true,
-    passwordLockEnabled: true,
     attributes: {}
   };
 }
@@ -1316,7 +1304,6 @@ function parseBulkUsers(text: string): UserPayload[] {
       tenancyName,
       sourceActive: true,
       requireTotp,
-      passwordLockEnabled: true,
       attributes: {}
     } satisfies UserPayload;
   });

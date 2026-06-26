@@ -74,7 +74,7 @@ export async function createUsersBulk(
     method: "POST",
     body: JSON.stringify({
       passwordLockEnabled,
-      users: users.map((user) => cleanPayload(user, false))
+      users: users.map((user) => cleanPayload(user))
     })
   });
 }
@@ -187,8 +187,8 @@ async function requestText(path: string, init?: RequestInit): Promise<string> {
   return response.text();
 }
 
-function cleanPayload(payload: UserPayload, includePasswordLock = true) {
-  const cleaned = {
+function cleanPayload(payload: UserPayload) {
+  return {
     ...payload,
     employeeNumber: payload.employeeNumber.trim(),
     email: blankToNull(payload.email),
@@ -198,13 +198,6 @@ function cleanPayload(payload: UserPayload, includePasswordLock = true) {
     tenancyName: blankToNull(payload.tenancyName),
     attributes: Object.keys(payload.attributes).length ? payload.attributes : null
   };
-
-  if (!includePasswordLock) {
-    const { passwordLockEnabled, ...withoutPasswordLock } = cleaned;
-    return withoutPasswordLock;
-  }
-
-  return cleaned;
 }
 
 function blankToNull(value: string) {

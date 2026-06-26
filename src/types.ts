@@ -34,7 +34,6 @@ export type UserPayload = {
   tenancyName: string;
   sourceActive: boolean;
   requireTotp: boolean;
-  passwordLockEnabled: boolean;
   attributes: Record<string, string[]>;
 };
 
