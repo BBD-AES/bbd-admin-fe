@@ -94,6 +94,7 @@ export type UserMaintenanceResponse = {
   updated: number;
   unchanged: number;
   failedUsers: string[];
+  warnings: string[];
   result: string;
 };
 

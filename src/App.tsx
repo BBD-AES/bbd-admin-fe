@@ -175,8 +175,8 @@ export default function App() {
     try {
       const policy = await getPasswordLockPolicy();
       setPasswordLockEnabled(policy.enabled !== false);
-    } catch (caught) {
-      handleFailure(caught);
+    } catch {
+      setPasswordLockEnabled(true);
     }
   }
 
@@ -306,6 +306,8 @@ export default function App() {
       const summary =
         `전체 ${result.requested}명 중 ${result.updated}명 적용, `
         + `${result.unchanged}명 이미 적용`;
+      const warnings = result.warnings ?? [];
+      const warningText = warnings.length ? `\n${warnings.join("\n")}` : "";
 
       await loadUsers();
       if (selectedId) {
@@ -313,11 +315,13 @@ export default function App() {
       }
 
       if (result.failedUsers.length) {
-        setError(`${summary}, ${result.failedUsers.length}명 실패\n${result.failedUsers.join("\n")}`);
+        setError(
+          `${summary}, ${result.failedUsers.length}명 실패\n${result.failedUsers.join("\n")}${warningText}`
+        );
       } else {
         setApplySettingsModalOpen(false);
         setModalError("");
-        setNotice(summary);
+        setNotice(`${summary}${warningText}`);
       }
     } catch (caught) {
       setModalError(isAdminDenied(caught) ? ADMIN_DENIED_MESSAGE : errorMessage(caught));
@@ -1019,7 +1023,7 @@ export default function App() {
 
   function setAccountStatus(status: AccountStatus) {
     const active = status === "ACTIVE";
-    setForm((current) => ({ ...current, enabled: active }));
+    setForm((current) => ({ ...current, enabled: active, sourceActive: active }));
   }
 }
 
