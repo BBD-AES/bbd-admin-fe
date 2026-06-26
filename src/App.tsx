@@ -638,11 +638,6 @@ export default function App() {
                 <button className="primary" disabled={busy} type="button" onClick={openEditModal}>
                   정보 수정
                 </button>
-                {detail.lockStatus?.locked === true && (
-                  <button disabled={busy} type="button" onClick={() => void unlockSelected()}>
-                    잠금 해제
-                  </button>
-                )}
                 <button disabled={busy} type="button" onClick={deactivateSelected}>
                   비활성화
                 </button>
@@ -798,6 +793,7 @@ export default function App() {
                 <label>
                   계정 상태
                   <select
+                    disabled={detail?.lockStatus?.locked === true}
                     value={accountStatus(form)}
                     onChange={(event) => setAccountStatus(event.target.value as AccountStatus)}
                   >
