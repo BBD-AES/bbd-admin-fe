@@ -75,7 +75,7 @@ const tenancyNameOptions: Record<TenancyType, string[]> = {
 
 type ModalMode = "create" | "edit";
 
-const bulkSample = `사번,이름,직급,비밀번호,역할,소속 유형,소속명,계정 상태,임시 비밀번호,사번 자동 발급,2차 인증 설정
+const bulkSample = `사번,이름,직급,비밀번호,역할,소속 유형,소속명,Keycloak 계정 상태,임시 비밀번호,사번 자동 발급,2차 인증 설정
 ,이상장,점장,bbd12345,지점 직원,지점,강남지점,활성,true,true,true
 ,김본사,과장,bbd12345,본사 직원,본사,성수본사,활성,true,true,true`;
 
@@ -626,6 +626,8 @@ export default function App() {
                 <dd>{tenancyLabel(detail.scim?.tenancyType)}</dd>
                 <dt>소속명</dt>
                 <dd>{detail.scim?.tenancyName ?? "-"}</dd>
+                <dt>원천 계정 상태</dt>
+                <dd>{detail.scim?.active === false ? "비활성" : "활성"}</dd>
                 <dt>잠금 상태</dt>
                 <dd>{lockStatusLabel(detail)}</dd>
                 <dt>SCIM ID</dt>
@@ -638,9 +640,11 @@ export default function App() {
                 <button className="primary" disabled={busy} type="button" onClick={openEditModal}>
                   정보 수정
                 </button>
-                <button disabled={busy} type="button" onClick={deactivateSelected}>
-                  비활성화
-                </button>
+                {detail.lockStatus?.locked !== true && (
+                  <button disabled={busy} type="button" onClick={deactivateSelected}>
+                    비활성화
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -794,10 +798,22 @@ export default function App() {
                 </label>
 
                 <label>
-                  계정 상태
+                  Keycloak 계정 상태
                   <select
+                    disabled={detail?.lockStatus?.locked === true}
                     value={accountStatus(form)}
                     onChange={(event) => setAccountStatus(event.target.value as AccountStatus)}
+                  >
+                    <option value="ACTIVE">활성</option>
+                    <option value="SUSPENDED">비활성</option>
+                  </select>
+                </label>
+
+                <label>
+                  원천 계정 상태
+                  <select
+                    value={sourceAccountStatus(form)}
+                    onChange={(event) => setSourceAccountStatus(event.target.value as AccountStatus)}
                   >
                     <option value="ACTIVE">활성</option>
                     <option value="SUSPENDED">비활성</option>
@@ -1010,7 +1026,12 @@ export default function App() {
 
   function setAccountStatus(status: AccountStatus) {
     const active = status === "ACTIVE";
-    setForm((current) => ({ ...current, enabled: active, sourceActive: active }));
+    setForm((current) => ({ ...current, enabled: active }));
+  }
+
+  function setSourceAccountStatus(status: AccountStatus) {
+    const active = status === "ACTIVE";
+    setForm((current) => ({ ...current, sourceActive: active }));
   }
 }
 
@@ -1043,6 +1064,10 @@ function withTemporaryPasswordDefault(payload: UserPayload): UserPayload {
 
 function accountStatus(payload: UserPayload): AccountStatus {
   return payload.enabled === false ? "SUSPENDED" : "ACTIVE";
+}
+
+function sourceAccountStatus(payload: UserPayload): AccountStatus {
+  return payload.sourceActive === false ? "SUSPENDED" : "ACTIVE";
 }
 
 function defaultTenancyName(type: TenancyType) {
@@ -1184,16 +1209,10 @@ function lockStatusLabel(detail: AdminUserDetail) {
 }
 
 function userStatusClass(user: KeycloakUserSummary) {
-  if (user.lockStatus?.locked === true) {
-    return "locked";
-  }
   return user.enabled === false ? "off" : "on";
 }
 
 function detailStatusClass(detail: AdminUserDetail) {
-  if (detail.lockStatus?.locked === true) {
-    return "locked";
-  }
   return detail.keycloak.enabled === false ? "off" : "on";
 }
 
@@ -1386,7 +1405,7 @@ function accountStatusFromInput(value: string): AccountStatus {
   if (["비활성", "SUSPENDED", "INACTIVE", "FALSE", "N", "NO"].includes(normalized)) {
     return "SUSPENDED";
   }
-  throw new Error(`계정 상태 값이 올바르지 않습니다: ${value}`);
+  throw new Error(`Keycloak 계정 상태 값이 올바르지 않습니다: ${value}`);
 }
 
 function booleanValue(value: string, label = "값") {
