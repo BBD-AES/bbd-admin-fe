@@ -575,9 +575,6 @@ export default function App() {
                 <span className="row-sub">{employeeListSummary(user)}</span>
                 <span className="row-meta">{employeeListMeta(user)}</span>
                 {user.lockStatus?.locked === true && <span className="lock-chip">잠김</span>}
-                <span className={`status ${userStatusClass(user)}`}>
-                  {user.enabled === false ? "비활성" : "활성"}
-                </span>
               </button>
             ))}
             {!users.length && <p className="empty">조회된 직원이 없습니다.</p>}
@@ -626,8 +623,6 @@ export default function App() {
                 <dd>{tenancyLabel(detail.scim?.tenancyType)}</dd>
                 <dt>소속명</dt>
                 <dd>{detail.scim?.tenancyName ?? "-"}</dd>
-                <dt>원천 계정 상태</dt>
-                <dd>{detail.scim?.active === false ? "비활성" : "활성"}</dd>
                 <dt>잠금 상태</dt>
                 <dd>{lockStatusLabel(detail)}</dd>
                 <dt>SCIM ID</dt>
@@ -803,17 +798,6 @@ export default function App() {
                     disabled={detail?.lockStatus?.locked === true}
                     value={accountStatus(form)}
                     onChange={(event) => setAccountStatus(event.target.value as AccountStatus)}
-                  >
-                    <option value="ACTIVE">활성</option>
-                    <option value="SUSPENDED">비활성</option>
-                  </select>
-                </label>
-
-                <label>
-                  원천 계정 상태
-                  <select
-                    value={sourceAccountStatus(form)}
-                    onChange={(event) => setSourceAccountStatus(event.target.value as AccountStatus)}
                   >
                     <option value="ACTIVE">활성</option>
                     <option value="SUSPENDED">비활성</option>
@@ -1028,11 +1012,6 @@ export default function App() {
     const active = status === "ACTIVE";
     setForm((current) => ({ ...current, enabled: active }));
   }
-
-  function setSourceAccountStatus(status: AccountStatus) {
-    const active = status === "ACTIVE";
-    setForm((current) => ({ ...current, sourceActive: active }));
-  }
 }
 
 type AccountStatus = "ACTIVE" | "SUSPENDED";
@@ -1064,10 +1043,6 @@ function withTemporaryPasswordDefault(payload: UserPayload): UserPayload {
 
 function accountStatus(payload: UserPayload): AccountStatus {
   return payload.enabled === false ? "SUSPENDED" : "ACTIVE";
-}
-
-function sourceAccountStatus(payload: UserPayload): AccountStatus {
-  return payload.sourceActive === false ? "SUSPENDED" : "ACTIVE";
 }
 
 function defaultTenancyName(type: TenancyType) {
@@ -1206,10 +1181,6 @@ function lockStatusLabel(detail: AdminUserDetail) {
 
   const failures = detail.lockStatus.numFailures ?? 0;
   return failures > 0 ? `정상 (${failures}회 실패)` : "정상";
-}
-
-function userStatusClass(user: KeycloakUserSummary) {
-  return user.enabled === false ? "off" : "on";
 }
 
 function detailStatusClass(detail: AdminUserDetail) {

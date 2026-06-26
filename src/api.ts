@@ -62,7 +62,7 @@ export async function getNextEmployeeNumber(
 export async function createUser(payload: UserPayload): Promise<ProvisionedUserResponse> {
   return request<ProvisionedUserResponse>("/api/admin/users", {
     method: "POST",
-    body: JSON.stringify(cleanPayload(payload))
+    body: JSON.stringify(cleanPayload(payload, { includeSourceActive: true }))
   });
 }
 
@@ -74,7 +74,7 @@ export async function createUsersBulk(
     method: "POST",
     body: JSON.stringify({
       passwordLockEnabled,
-      users: users.map((user) => cleanPayload(user))
+      users: users.map((user) => cleanPayload(user, { includeSourceActive: true }))
     })
   });
 }
@@ -107,7 +107,7 @@ export async function updateUser(
 ): Promise<ProvisionedUserResponse> {
   return request<ProvisionedUserResponse>(`/api/admin/users/${encodeURIComponent(userId)}`, {
     method: "PUT",
-    body: JSON.stringify(cleanPayload(payload))
+    body: JSON.stringify(cleanPayload(payload, { includeSourceActive: false }))
   });
 }
 
@@ -187,8 +187,11 @@ async function requestText(path: string, init?: RequestInit): Promise<string> {
   return response.text();
 }
 
-function cleanPayload(payload: UserPayload) {
-  return {
+function cleanPayload(
+  payload: UserPayload,
+  options: { includeSourceActive: boolean }
+) {
+  const cleaned = {
     ...payload,
     employeeNumber: payload.employeeNumber.trim(),
     email: blankToNull(payload.email),
@@ -198,6 +201,13 @@ function cleanPayload(payload: UserPayload) {
     tenancyName: blankToNull(payload.tenancyName),
     attributes: Object.keys(payload.attributes).length ? payload.attributes : null
   };
+
+  if (!options.includeSourceActive) {
+    const { sourceActive: _sourceActive, ...withoutSourceActive } = cleaned;
+    return withoutSourceActive;
+  }
+
+  return cleaned;
 }
 
 function blankToNull(value: string) {
