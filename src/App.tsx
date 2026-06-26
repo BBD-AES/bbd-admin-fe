@@ -663,6 +663,9 @@ export default function App() {
               </div>
 
               {modalError && <section className="modal-message error">{modalError}</section>}
+              {modalMode === "edit" && detail?.lockStatus?.locked === true && (
+                <section className="modal-message error">비밀번호 잠김 상태입니다.</section>
+              )}
 
               <div className="form-grid">
                 <label>
@@ -793,7 +796,6 @@ export default function App() {
                 <label>
                   계정 상태
                   <select
-                    disabled={detail?.lockStatus?.locked === true}
                     value={accountStatus(form)}
                     onChange={(event) => setAccountStatus(event.target.value as AccountStatus)}
                   >
